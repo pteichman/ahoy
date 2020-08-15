@@ -1,6 +1,10 @@
 package main
 
-import "os"
+import (
+	"os"
+
+	"github.com/pteichman/ahoy"
+)
 
 func main() {
 	os.Exit(ahoy.CLI(os.Args[1:], os.Stdout, os.Stderr))
