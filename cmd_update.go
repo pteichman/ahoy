@@ -10,7 +10,9 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-func cliUpdate(args []string, stdout, stderr io.Writer) int {
+const curSchema = 1597460998
+
+func cmdUpdate(args []string, stdout, stderr io.Writer) int {
 	var app updateApp
 	if err := app.fromArgs(args, stdout, stderr); err != nil {
 		return 2
@@ -57,4 +59,5 @@ func (app *updateApp) run() error {
 	defer db.Close()
 
 	return nil
+	//	return schema.Apply(context.Background(), app.db, schema.Schema(), curVersion)
 }

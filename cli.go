@@ -15,10 +15,10 @@ func CLI(args []string, stdout, stderr io.Writer) int {
 
 	switch cmd {
 	case "update":
-		return cliUpdate(rest, stdout, stderr)
+		return cmdUpdate(rest, stdout, stderr)
 
 	case "server":
-		return cliServer(rest, stdout, stderr)
+		return cmdServer(rest, stdout, stderr)
 
 	default:
 		fmt.Fprintf(stderr, "ERROR: Unknown command: %s\n", cmd)
