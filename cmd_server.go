@@ -10,6 +10,7 @@ import (
 	"os"
 
 	"github.com/julienschmidt/httprouter"
+	"go.opentelemetry.io/otel/api/trace"
 )
 
 func cmdServer(args []string, stdout, stderr io.Writer) int {
@@ -74,6 +75,7 @@ func (app *serverApp) run() error {
 		PublicHost: app.publicHost,
 		PublicURL:  app.publicURL,
 		Logger:     log.New(os.Stderr, "", log.LstdFlags),
+		Tracer:     trace.NoopTracer{},
 	}
 
 	router := httprouter.New()

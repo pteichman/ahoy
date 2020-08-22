@@ -9,6 +9,8 @@ import (
 
 	"github.com/julienschmidt/httprouter"
 	"github.com/piprate/json-gold/ld"
+	"go.opentelemetry.io/otel/api/trace"
+	"google.golang.org/grpc/codes"
 )
 
 type Env struct {
@@ -16,68 +18,44 @@ type Env struct {
 	PublicURL  string
 
 	Logger *log.Logger
+	Tracer trace.Tracer
 }
 
 func handleUsers(env *Env) httprouter.Handle {
 	proc := ld.NewJsonLdProcessor()
-
 	options := ld.NewJsonLdOptions("")
 
-	// context := []interface{}{
-	// 	"https://www.w3.org/ns/activitystreams",
-	// 	"https://w3id.org/security/v1",
-	// }
-
-	context := map[string]interface{}{
-		"@vocab": "https://www.w3.org/ns/activitystreams",
-		"sec":    "https://w3id.org/security/v1",
+	context := []interface{}{
+		"https://www.w3.org/ns/activitystreams",
+		"https://w3id.org/security/v1",
 	}
 
-	//	options.CompactArrays = true
-	//	options.DocumentLoader = ld.NewDefaultDocumentLoader()
-	//	options.ExpandContext = []string{
-	//		"as:https://www.w3.org/ns/activitystreams",
-	//		"sec:https://w3id.org/security/v1",
-	//	}
-
 	return func(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
-		env.Logger.Println(params)
+		ctx, span := env.Tracer.Start(r.Context(), "ahoy.handleUsers")
+		defer span.End()
 
 		doc := map[string]interface{}{
-			"@context": map[string]interface{}{
-				"@vocab": "https://www.w3.org/ns/activitystreams",
-				"sec":    "https://w3id.org/security/v1",
-			},
-
 			"id":                r.URL.String(),
-			"@type":             "https://www.w3.org/ns/activitystreams#Person",
+			"type":              "Person",
 			"preferredUsername": "username",
 			"inbox":             env.PublicURL + "/inbox/username",
 		}
 
-		expanded, err := proc.Expand(doc, options)
+		doc2, err := proc.Compact(doc, context, options)
 		if err != nil {
-			env.Logger.Println("whoops", err)
-			http.Error(w, "internal server error", 500)
+			span.RecordError(ctx, err, trace.WithErrorStatus(codes.Internal))
+
+			http.Error(w, "internal server error", http.StatusInternalServerError)
 			return
 		}
 
-		ld.PrintDocument("doc1", expanded)
-
-		// doc2, err := proc.Expand("https://mastodon.social/users/pteichman", options)
-		// if err != nil {
-		// 	env.Logger.Println("Error when expanding JSON-LD document:", err)
-		// 	return
-		// }
-
-		env.Logger.Println("wtf~")
-		doc2, err := proc.Compact("https://mastodon.social/@pteichman", context, options)
+		err = json.NewEncoder(w).Encode(doc2)
 		if err != nil {
-			env.Logger.Println("Error when expanding JSON-LD document:", err)
+			span.RecordError(ctx, err, trace.WithErrorStatus(codes.Internal))
+
+			http.Error(w, "internal server error", http.StatusInternalServerError)
 			return
 		}
-
-		ld.PrintDocument("doc2", doc2)
 	}
 }
 

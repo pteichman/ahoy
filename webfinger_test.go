@@ -2,11 +2,9 @@ package ahoy
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
 	"strings"
 	"testing"
 
@@ -15,11 +13,8 @@ import (
 )
 
 func TestWebfinger_handleWebfingerOK(t *testing.T) {
-	env := &Env{
-		PublicHost: "example.org",
-		PublicURL:  "https://example.org",
-		Logger:     log.New(os.Stdout, "", log.LstdFlags),
-	}
+	env, cleanup := newTestEnv(t)
+	defer cleanup()
 
 	router := httprouter.New()
 	router.GET("/.well-known/webfinger", handleWebfinger(env))
@@ -38,11 +33,8 @@ func TestWebfinger_handleWebfingerOK(t *testing.T) {
 }
 
 func TestWebfinger_handleWebfingerWrongHost(t *testing.T) {
-	env := &Env{
-		PublicHost: "example.org",
-		PublicURL:  "https://example.org",
-		Logger:     log.New(os.Stdout, "", log.LstdFlags),
-	}
+	env, cleanup := newTestEnv(t)
+	defer cleanup()
 
 	router := httprouter.New()
 	router.GET("/.well-known/webfinger", handleWebfinger(env))

@@ -2,10 +2,13 @@ package ahoy
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"regexp"
 
 	"github.com/julienschmidt/httprouter"
+	"go.opentelemetry.io/otel/api/trace"
+	"google.golang.org/grpc/codes"
 )
 
 type WebfingerResponse struct {
@@ -23,11 +26,15 @@ func handleWebfinger(env *Env) httprouter.Handle {
 	acctRe := regexp.MustCompile("acct:([a-z]+)@" + regexp.QuoteMeta(env.PublicHost))
 
 	return func(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+		ctx, span := env.Tracer.Start(r.Context(), "ahoy.handleWebfinger")
+		defer span.End()
+
 		query := r.URL.Query()
 		resourceParam := query.Get("resource")
 
 		m := acctRe.FindStringSubmatch(resourceParam)
 		if len(m) < 2 {
+			span.RecordError(ctx, errors.New("not found"), trace.WithErrorStatus(codes.NotFound))
 			http.Error(w, "not found", http.StatusNotFound)
 			return
 		}
@@ -50,7 +57,8 @@ func handleWebfinger(env *Env) httprouter.Handle {
 
 		err := json.NewEncoder(w).Encode(resp)
 		if err != nil {
-			env.Logger.Println("encoding jrd+json", err)
+			span.RecordError(ctx, err, trace.WithErrorStatus(codes.Internal))
+
 			http.Error(w, "internal server error", http.StatusInternalServerError)
 			return
 		}
