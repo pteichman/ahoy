@@ -11,19 +11,14 @@ import (
 	"log"
 	"regexp"
 	"runtime"
-	"sync/atomic"
 	"time"
 )
 
 func main() {
 	pubkeyRe := regexp.MustCompile(`83e(0[1-9]|1[0-2])23$`)
-
-	start := time.Now()
-	count := uint64(0)
+	nGoroutines := runtime.NumCPU()
 
 	valid := func(pubkey []byte) bool {
-		atomic.AddUint64(&count, 1)
-
 		// Fail fast if the key doesn't match '83e', so the more expensive
 		// check on the hex string happens on fewer candidates.
 		suffix := pubkey[len(pubkey)-4:]
@@ -35,22 +30,31 @@ func main() {
 		return pubkeyRe.MatchString(pubhex)
 	}
 
+	start := time.Now()
+	counts := make([]uint64, nGoroutines)
+
 	keys := make(chan []byte)
 
 	for i := 0; i < runtime.NumCPU(); i++ {
-		go func() {
+		go func(index int) {
 			priv, err := generateMatch(rand.Reader, valid)
 			if err != nil {
 				log.Printf("generateMatch: %s", err)
 				return
 			}
 
-			keys <- priv
-		}()
+			counts[index]++
+
+			select {
+			case keys <- priv:
+				close(keys)
+			default:
+			}
+		}(i)
 	}
 
 	key := <-keys
-	
+
 	pub := key[len(key)-ed25519.PublicKeySize:]
 
 	filename := fmt.Sprintf("spring-83-keypair-%s-%x.txt",
@@ -60,7 +64,7 @@ func main() {
 
 	ioutil.WriteFile(filename, []byte(content), 0644)
 
-	fmt.Printf("Checked %d candidates in %s\n", count, time.Since(start).Truncate(time.Millisecond))
+	fmt.Printf("Checked %d candidates in %s\n", sum(counts), time.Since(start).Truncate(time.Millisecond))
 	fmt.Printf("Wrote: %s\n", filename)
 }
 
@@ -75,4 +79,12 @@ func generateMatch(r io.Reader, valid func([]byte) bool) ([]byte, error) {
 			return priv, nil
 		}
 	}
+}
+
+func sum(vv []uint64) uint64 {
+	var sum uint64
+	for _, v := range vv {
+		sum += v
+	}
+	return sum
 }
