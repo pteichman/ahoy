@@ -41,10 +41,10 @@ Wrote: spring-83-keypair-2022-06-18-47e0f417f426.txt
 This keypair must remain private and cannot be regenerated if lost.
 
 You pass your server and a reference to this keypair as command line flags
-to ahoy when performing remote operations.
+to ahoy when performing remote operations. To replace a keypair's board with the contents of _file_:
 
 ```
-$ ahoy --server https://bogbody.biz/ --keypair spring-83-keypair-2022-06-18-47e0f417f426.txt put <file>
+$ ahoy --server=bogbody.biz --keypair=spring-83-keypair-2022-06-18-47e0f417f426.txt put <file>
 Wrote 2134 bytes to https://bogbody.biz/47e0f417f42634b42917124c8c9709714ac28c632830c2f96f8e52beb83e0623
 ```
 
@@ -53,16 +53,6 @@ Wrote 2134 bytes to https://bogbody.biz/47e0f417f42634b42917124c8c9709714ac28c63
 Here are some example interactions that haven't been implemented yet. The
 Spring '83 server and keypair file are passed in the environment, though
 both can be passed as flags too.
-
-Replace the current keypair's board with the contents of _filename_:
-```
-$ ahoy put <filename>
-```
-
-Pipe a command to your board:
-```
-$ fortune | ahoy put -
-```
 
 Edit your board using $EDITOR:
 ```
