@@ -38,6 +38,7 @@ func CLI(args []string) int {
 type appEnv struct {
 	cmd string
 
+	get    cmdGet
 	keygen cmdKeygen
 	put    cmdPut
 }
@@ -48,6 +49,15 @@ func (e *appEnv) fromArgs(args []string) error {
 	}
 
 	switch args[0] {
+	case "get":
+		e.cmd = "get"
+
+		fs := flag.NewFlagSet("get", flag.ContinueOnError)
+		fs.StringVar(&e.get.server, "server", "bogbody.biz", "Spring '83 server hostname")
+		fs.StringVar(&e.get.keypair, "keypair", "", "Spring '83 keypair filename")
+
+		return fs.Parse(args[1:])
+
 	case "keygen":
 		e.cmd = "keygen"
 		return nil
@@ -78,6 +88,9 @@ func (e *appEnv) fromArgs(args []string) error {
 
 func (e *appEnv) run() error {
 	switch e.cmd {
+	case "get":
+		return e.get.run()
+
 	case "keygen":
 		return e.keygen.run()
 
@@ -88,6 +101,62 @@ func (e *appEnv) run() error {
 		return fmt.Errorf("unknown command: %s", e.cmd)
 
 	}
+}
+
+type cmdGet struct {
+	server  string
+	keypair string
+}
+
+func (c *cmdGet) run() error {
+	keypairtxt, err := ioutil.ReadFile(c.keypair)
+	if err != nil {
+		return err
+	}
+
+	if len(keypairtxt) < ed25519.PrivateKeySize*2 {
+		return errors.New("short hex-encoded keypair")
+	}
+
+	keypair, err := hex.DecodeString(string(keypairtxt)[:ed25519.PrivateKeySize*2])
+	if err != nil {
+		return err
+	}
+
+	// Recalculate and check the public key to make sure the keypair is legit.
+	check := ed25519.NewKeyFromSeed(keypair[:ed25519.SeedSize])
+	if !bytes.Equal(check, keypair) {
+		return errors.New("invalid keypair")
+	}
+
+	pub := hex.EncodeToString(keypair[len(keypair)-ed25519.PublicKeySize:])
+
+	req, err := http.NewRequest("GET", "https://"+c.server+"/"+pub, nil)
+	if err != nil {
+		return err
+	}
+
+	req.Header["User-Agent"] = []string{"ahoy/0.1"}
+	req.Header["Spring-Version"] = []string{"83"}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("non-OK response: %s", resp.Status)
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(string(body))
+
+	return nil
 }
 
 type cmdKeygen struct{}
