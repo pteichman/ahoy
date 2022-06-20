@@ -1,9 +1,16 @@
 package ahoy
 
 import (
+	"context"
+	"crypto/ed25519"
+	"crypto/rand"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"os"
+	"time"
+
+	"github.com/pteichman/ahoy/spring83"
 )
 
 // CLI is the main entry point for the ahoy command line tool.
@@ -57,5 +64,27 @@ func (e *appEnv) run() error {
 type cmdKeygen struct{}
 
 func (c *cmdKeygen) run() error {
+	start := time.Now()
+	fmt.Printf("Starting key generation. This can take some time.\n")
+
+	key, err := spring83.GenerateKeyParallel(context.Background(), rand.Reader)
+	if err != nil {
+		return err
+	}
+
+	pub := key[len(key)-ed25519.PublicKeySize:]
+
+	filename := fmt.Sprintf("spring-83-keypair-%s-%x.txt",
+		time.Now().Format("2006-01-02"), pub[:6])
+
+	content := fmt.Sprintf("%x\n", key)
+	if err := ioutil.WriteFile(filename, []byte(content), 0644); err != nil {
+		return err
+	}
+
+	fmt.Printf("Generated key in %s\n", time.Since(start).Truncate(time.Millisecond))
+	fmt.Printf("Pubkey: %x\n", pub)
+	fmt.Printf("Wrote: %s\n", filename)
+
 	return nil
 }
