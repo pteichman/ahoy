@@ -13,14 +13,14 @@ Install the Go toolchain if you don't already have it: https://go.dev/dl/
 
 And then:
 
-```sh
+```
 $ go install github.com/pteichman/ahoy/cmd/ahoy@latest
 $ ~/go/bin/ahoy --help
 ```
 
 ## Building from a local clone
 
-```sh
+```
 $ go build ./cmd/ahoy
 $ ./ahoy --help
 ```
@@ -31,7 +31,7 @@ Your Spring '83 identity is a text file containing the hex encoding of a
 private and public key, concatenated together. You can generate one of
 these files:
 
-```sh
+```
 $ ahoy keygen
 Checked 9361687 candidates in 22.79s
 Pubkey: 47e0f417f42634b42917124c8c9709714ac28c632830c2f96f8e52beb83e0623
@@ -39,3 +39,33 @@ Wrote: spring-83-keypair-2022-06-18-47e0f417f426.txt
 ```
 
 This keypair must remain private and cannot be regenerated if lost.
+
+You pass your server and a reference to this keypair as command line flags
+to ahoy when performing remote operations.
+
+```
+$ ahoy --server https://bogbody.biz/ --keypair spring-83-keypair-2022-06-18-47e0f417f426.txt put <file>
+Wrote 2134 bytes to https://bogbody.biz/47e0f417f42634b42917124c8c9709714ac28c632830c2f96f8e52beb83e0623
+```
+
+## Future Work
+
+Here are some example interactions that haven't been implemented yet. The
+Spring '83 server and keypair file are passed in the environment, though
+both can be passed as flags too.
+
+Replace the current keypair's board with the contents of _filename_:
+```
+$ ahoy put <filename>
+```
+
+Pipe a command to your board:
+```
+$ fortune | ahoy put -
+```
+
+Edit your board using $EDITOR:
+```
+$ ahoy edit
+```
+
