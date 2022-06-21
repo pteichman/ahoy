@@ -11,7 +11,6 @@ import (
 	"runtime"
 )
 
-// GenerateKey generates a
 func GenerateKey(ctx context.Context, seeds io.Reader) ([]byte, error) {
 	return generateKeyValid(ctx, seeds, ValidPubKey)
 }
