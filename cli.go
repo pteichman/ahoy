@@ -13,7 +13,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
-	"strconv"
 	"time"
 
 	"github.com/pteichman/ahoy/spring83"
@@ -131,30 +130,12 @@ func (c *cmdGet) run() error {
 
 	pub := hex.EncodeToString(keypair[len(keypair)-ed25519.PublicKeySize:])
 
-	req, err := http.NewRequest("GET", "https://"+c.server+"/"+pub, nil)
+	board, err := spring83.Get(*http.DefaultClient, c.server, pub)
 	if err != nil {
 		return err
 	}
 
-	req.Header["User-Agent"] = []string{"ahoy/0.1"}
-	req.Header["Spring-Version"] = []string{"83"}
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		return fmt.Errorf("non-OK response: %s", resp.Status)
-	}
-
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-
-	fmt.Println(string(body))
+	fmt.Println(string(board))
 
 	return nil
 }
@@ -209,8 +190,8 @@ func (c *cmdPut) run() error {
 	}
 
 	// Recalculate and check the public key to make sure the keypair is legit.
-	check := ed25519.NewKeyFromSeed(keypair[:ed25519.SeedSize])
-	if !bytes.Equal(check, keypair) {
+	priv := ed25519.NewKeyFromSeed(keypair[:ed25519.SeedSize])
+	if !bytes.Equal(priv, keypair) {
 		return errors.New("invalid keypair")
 	}
 
@@ -224,48 +205,17 @@ func (c *cmdPut) run() error {
 		}
 	}
 
-	content, err := ioutil.ReadAll(&io.LimitedReader{R: reader, N: spring83.MaxBoardLen + 1})
+	board, err := ioutil.ReadAll(&io.LimitedReader{R: reader, N: spring83.MaxBoardLen + 1})
 	if err != nil {
 		return err
 	}
 
-	if len(content) > spring83.MaxBoardLen {
+	if len(board) > spring83.MaxBoardLen {
 		return errors.New("supplied content longer than 2217 bytes")
 	}
 
 	now := time.Now().UTC()
-	body := append(now.AppendFormat(nil, spring83.BoardDateFormat), content...)
+	board = append(now.AppendFormat(nil, spring83.BoardDateFormat), board...)
 
-	if len(body) > spring83.MaxBoardLen {
-		return errors.New("content + date longer than 2217 bytes")
-	}
-
-	pub := hex.EncodeToString(keypair[len(keypair)-ed25519.PublicKeySize:])
-	sig := hex.EncodeToString(ed25519.Sign(check, body))
-
-	req, err := http.NewRequest("PUT", "https://"+c.server+"/"+pub, bytes.NewReader(body))
-	if err != nil {
-		return err
-	}
-
-	req.Header["User-Agent"] = []string{"ahoy/0.1"}
-	req.Header["If-Unmodified-Since"] = []string{now.Format(http.TimeFormat)}
-
-	req.Header["Content-Type"] = []string{"text/html;charset=utf-8"}
-	req.Header["Content-Length"] = []string{strconv.Itoa(len(body))}
-
-	req.Header["Spring-Version"] = []string{"83"}
-	req.Header["Spring-Signature"] = []string{sig}
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 && resp.StatusCode != 201 && resp.StatusCode != 204 {
-		return fmt.Errorf("non-OK response: %s", resp.Status)
-	}
-
-	return nil
+	return spring83.Put(c.server, priv, now, board)
 }
