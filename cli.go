@@ -224,21 +224,19 @@ func (c *cmdPut) run() error {
 		}
 	}
 
-	datefmt := "<time datetime=\"2006-01-02T15:04:05Z\"></time>\n"
-
-	content, err := ioutil.ReadAll(&io.LimitedReader{R: reader, N: 2218})
+	content, err := ioutil.ReadAll(&io.LimitedReader{R: reader, N: spring83.MaxBoardLen + 1})
 	if err != nil {
 		return err
 	}
 
-	if len(content) > 2217 {
+	if len(content) > spring83.MaxBoardLen {
 		return errors.New("supplied content longer than 2217 bytes")
 	}
 
 	now := time.Now().UTC()
-	body := append(now.AppendFormat(nil, datefmt), content...)
+	body := append(now.AppendFormat(nil, spring83.BoardDateFormat), content...)
 
-	if len(body) > 2217 {
+	if len(body) > spring83.MaxBoardLen {
 		return errors.New("content + date longer than 2217 bytes")
 	}
 
