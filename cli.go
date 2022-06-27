@@ -11,8 +11,10 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"os"
+	"regexp"
 	"time"
 
 	"github.com/pteichman/ahoy/spring83"
@@ -37,6 +39,7 @@ func CLI(args []string) int {
 type appEnv struct {
 	cmd string
 
+	edit   cmdEdit
 	get    cmdGet
 	keygen cmdKeygen
 	put    cmdPut
@@ -48,6 +51,19 @@ func (e *appEnv) fromArgs(args []string) error {
 	}
 
 	switch args[0] {
+	case "edit":
+		e.cmd = "edit"
+
+		fs := flag.NewFlagSet("edit", flag.ContinueOnError)
+		fs.StringVar(&e.edit.server, "server", "bogbody.biz", "Spring '83 server hostname")
+		fs.StringVar(&e.edit.keypair, "keypair", "", "Spring '83 keypair filename")
+
+		if err := fs.Parse(args[1:]); err != nil {
+			return err
+		}
+
+		return fs.Parse(args[1:])
+
 	case "get":
 		e.cmd = "get"
 
@@ -87,6 +103,9 @@ func (e *appEnv) fromArgs(args []string) error {
 
 func (e *appEnv) run() error {
 	switch e.cmd {
+	case "edit":
+		return e.edit.run()
+
 	case "get":
 		return e.get.run()
 
@@ -100,6 +119,61 @@ func (e *appEnv) run() error {
 		return fmt.Errorf("unknown command: %s", e.cmd)
 
 	}
+}
+
+type cmdEdit struct {
+	server  string
+	keypair string
+}
+
+func (c *cmdEdit) run() error {
+	keypairtxt, err := ioutil.ReadFile(c.keypair)
+	if err != nil {
+		return err
+	}
+
+	if len(keypairtxt) < ed25519.PrivateKeySize*2 {
+		return errors.New("short hex-encoded keypair")
+	}
+
+	keypair, err := hex.DecodeString(string(keypairtxt)[:ed25519.PrivateKeySize*2])
+	if err != nil {
+		return err
+	}
+
+	// Recalculate and check the public key to make sure the keypair is legit.
+	check := ed25519.NewKeyFromSeed(keypair[:ed25519.SeedSize])
+	if !bytes.Equal(check, keypair) {
+		return errors.New("invalid keypair")
+	}
+
+	pub := hex.EncodeToString(keypair[len(keypair)-ed25519.PublicKeySize:])
+
+	prev, err := spring83.Get(*http.DefaultClient, c.server, pub)
+	if err != nil {
+		return err
+	}
+
+	re := regexp.MustCompile(`<time datetime="[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z"></time>`)
+	prev = re.ReplaceAll(prev, nil)
+	prev = bytes.TrimSpace(prev)
+
+	next, err := Edit(prev)
+	if err != nil {
+		return err
+	}
+
+	prev = bytes.TrimSpace(prev)
+	next = bytes.TrimSpace(next)
+
+	if len(next) == 0 {
+		log.Println("Aborting edit due to empty edit message.")
+	}
+
+	now := time.Now().UTC()
+	board := append(now.AppendFormat(nil, spring83.BoardDateFormat), next...)
+
+	return spring83.Put(c.server, keypair, now, board)
 }
 
 type cmdGet struct {
